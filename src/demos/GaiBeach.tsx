@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { RetellWebClient } from "retell-client-js-sdk"
 import {
   AppBar,
@@ -58,14 +58,19 @@ const webClient = new RetellWebClient()
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#00B4B4",
-      light: "#33C3C3",
-      dark: "#007D7D",
+      main: "#1e3a8a", // Deep blue
+      light: "#3b82f6",
+      dark: "#1e40af",
     },
     secondary: {
-      main: "#FFB800",
-      light: "#FFC633",
-      dark: "#B28000",
+      main: "#0f766e", // Teal
+      light: "#14b8a6",
+      dark: "#0f5964",
+    },
+    error: {
+      main: "#b91c1c", // Dark red
+      light: "#ef4444",
+      dark: "#7f1d1d",
     },
   },
 })
@@ -79,6 +84,8 @@ export default function GaiBeach() {
     email: "",
     shippingAddress: "",
   })
+  const [transcript, setTranscript] = useState([])
+  const chatContentRef = useRef(null)
   const trigger = useScrollTrigger({
     disableHysteresis: true,
     threshold: 100,
@@ -105,10 +112,30 @@ export default function GaiBeach() {
       setCallInProgress(false)
     })
 
+    webClient.on("update", (update) => {
+      if (update.transcript) {
+        if (Array.isArray(update.transcript)) {
+          setTranscript(update.transcript)
+        } else if (typeof update.transcript === "object") {
+          setTranscript([update.transcript])
+        } else if (typeof update.transcript === "string") {
+          const messages = update.transcript
+            .split("\n")
+            .filter((line) => line.trim() !== "")
+            .map((line) => ({
+              role: "assistant",
+              content: line.trim(),
+            }))
+          setTranscript(messages)
+        }
+      }
+    })
+
     return () => {
       webClient.off("conversationStarted")
       webClient.off("conversationEnded")
       webClient.off("error")
+      webClient.off("update")
     }
   }, [])
 
@@ -260,6 +287,12 @@ export default function GaiBeach() {
   }
 `
 
+  useEffect(() => {
+    if (chatContentRef.current) {
+      chatContentRef.current.scrollTop = chatContentRef.current.scrollHeight
+    }
+  }, [])
+
   return (
     <ThemeProvider theme={theme}>
       {/* Navbar */}
@@ -388,66 +421,224 @@ export default function GaiBeach() {
             transform: "translateX(-50%)",
             display: "flex",
             gap: 3,
-            flexDirection: { xs: "column", sm: "row" },
+            flexDirection: "column",
             alignItems: "center",
+            width: "100%",
+            maxWidth: "600px",
           }}
         >
-          {/* Call Button */}
-          <Button
-            variant="contained"
-            color={callStatus === "active" ? "error" : "success"}
-            startIcon={callStatus === "active" ? <CallEndIcon /> : <CallIcon />}
-            onClick={toggleConversation}
+          <Box
             sx={{
-              borderRadius: "30px",
-              minWidth: "180px",
-              height: "60px",
-              fontSize: "18px",
-              fontWeight: "bold",
-              textTransform: "none",
-              transition: "all 0.3s ease-in-out",
-              background:
-                callStatus === "active"
-                  ? "linear-gradient(45deg, #FF3D00 30%, #FF6E40 90%)"
-                  : "linear-gradient(45deg, #00C853 30%, #69F0AE 90%)",
-              boxShadow:
-                callStatus === "active" ? "0 4px 20px rgba(255, 61, 0, 0.25)" : "0 4px 20px rgba(0, 200, 83, 0.25)",
-              "&:hover": {
-                transform: "translateY(-5px)",
+              display: "flex",
+              gap: 3,
+              flexDirection: { xs: "column", sm: "row" },
+              alignItems: "center",
+              width: "100%",
+              justifyContent: "center",
+            }}
+          >
+            {/* Call Button */}
+            <Button
+              variant="contained"
+              color={callStatus === "active" ? "error" : "success"}
+              startIcon={callStatus === "active" ? <CallEndIcon /> : <CallIcon />}
+              onClick={toggleConversation}
+              sx={{
+                borderRadius: "30px",
+                minWidth: "180px",
+                height: "60px",
+                fontSize: "17px",
+                fontWeight: "600",
+                textTransform: "none",
+                transition: "all 0.3s ease-in-out",
+                background:
+                  callStatus === "active"
+                    ? "linear-gradient(45deg, #b91c1c 30%, #ef4444 90%)"
+                    : "linear-gradient(45deg, #1e3a8a 30%, #3b82f6 90%)",
                 boxShadow:
-                  callStatus === "active" ? "0 6px 25px rgba(255, 61, 0, 0.4)" : "0 6px 25px rgba(0, 200, 83, 0.4)",
-              },
-              animation: callStatus === "active" ? `${pulse} 1.5s infinite` : "none",
-            }}
-          >
-            {callStatus === "active" ? "End Call" : "Start Call"}
-          </Button>
+                  callStatus === "active" ? "0 6px 20px rgba(185, 28, 28, 0.3)" : "0 6px 20px rgba(30, 58, 138, 0.3)",
+                "&:hover": {
+                  transform: "translateY(-3px)",
+                  boxShadow:
+                    callStatus === "active" ? "0 8px 25px rgba(185, 28, 28, 0.4)" : "0 8px 25px rgba(30, 58, 138, 0.4)",
+                },
+                animation: callStatus === "active" ? `${pulse} 1.5s infinite` : "none",
+                letterSpacing: "0.5px",
+                border:
+                  callStatus === "active" ? "1px solid rgba(185, 28, 28, 0.3)" : "1px solid rgba(30, 58, 138, 0.3)",
+              }}
+            >
+              {callStatus === "active" ? "End Call" : "Start Call"}
+            </Button>
 
-          {/* Chat Button */}
-          <Button
-            variant="contained"
-            color="secondary"
-            startIcon={<ChatIcon />}
-            onClick={() => setChatActive((prev) => !prev)}
+            {/* Chat Button */}
+            <Button
+              variant="contained"
+              color="secondary"
+              startIcon={<ChatIcon />}
+              onClick={() => setChatActive((prev) => !prev)}
+              sx={{
+                borderRadius: "30px",
+                minWidth: "180px",
+                height: "60px",
+                fontSize: "17px",
+                fontWeight: "600",
+                textTransform: "none",
+                transition: "all 0.3s ease-in-out",
+                background: "linear-gradient(45deg, #0f766e 30%, #14b8a6 90%)",
+                boxShadow: "0 6px 20px rgba(15, 118, 110, 0.3)",
+                "&:hover": {
+                  transform: "translateY(-3px)",
+                  boxShadow: "0 8px 25px rgba(15, 118, 110, 0.4)",
+                },
+                animation: chatActive ? `${pulse} 1.5s infinite` : "none",
+                letterSpacing: "0.5px",
+                border: "1px solid rgba(15, 118, 110, 0.3)",
+              }}
+            >
+              {chatActive ? "Close Chat" : "Open Chat"}
+            </Button>
+          </Box>
+
+          {/* Transcript Box - Always Visible */}
+          <Box
             sx={{
-              borderRadius: "30px",
-              minWidth: "180px",
-              height: "60px",
-              fontSize: "18px",
-              fontWeight: "bold",
-              textTransform: "none",
-              transition: "all 0.3s ease-in-out",
-              background: "linear-gradient(45deg, #FFB800 30%, #FFC633 90%)",
-              boxShadow: "0 4px 20px rgba(255, 184, 0, 0.25)",
-              "&:hover": {
-                transform: "translateY(-5px)",
-                boxShadow: "0 6px 25px rgba(255, 184, 0, 0.4)",
-              },
-              animation: chatActive ? `${pulse} 1.5s infinite` : "none",
+              width: "100%",
+              maxWidth: "500px",
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              borderRadius: "12px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              mt: 3,
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              backdropFilter: "blur(8px)",
             }}
           >
-            {chatActive ? "Close Chat" : "Open Chat"}
-          </Button>
+            <Box
+              sx={{
+                background: "linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%)",
+                padding: "0.8rem 1.2rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  margin: 0,
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: "1.1rem",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Voice Chat Transcript
+              </Typography>
+            </Box>
+            <Box
+              ref={chatContentRef}
+              sx={{
+                padding: "1.2rem",
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                display: "flex",
+                flexDirection: "column",
+                overflowY: "auto",
+                height: transcript.length > 0 ? "250px" : "100px",
+                transition: "height 0.3s ease-in-out",
+                "&::-webkit-scrollbar": {
+                  width: "6px",
+                  display: "none", // Hide scrollbar
+                },
+                scrollbarWidth: "none", // Hide scrollbar for Firefox
+                msOverflowStyle: "none", // Hide scrollbar for IE/Edge
+              }}
+            >
+              {transcript.length > 0 ? (
+                transcript.map((msg, idx) => (
+                  <Box
+                    key={idx}
+                    sx={{
+                      padding: "12px 16px",
+                      borderRadius: "12px",
+                      margin: "6px 0",
+                      maxWidth: "80%",
+                      wordBreak: "break-word",
+                      backgroundColor: msg.role === "agent" ? "#f0f7ff" : "#1e3a8a",
+                      color: msg.role === "agent" ? "#333" : "#fff",
+                      alignSelf: msg.role === "agent" ? "flex-start" : "flex-end",
+                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.05)",
+                      position: "relative",
+                      "&::after":
+                        msg.role !== "agent"
+                          ? {
+                              content: '""',
+                              position: "absolute",
+                              bottom: "8px",
+                              right: "-6px",
+                              width: "12px",
+                              height: "12px",
+                              backgroundColor: "#1e3a8a",
+                              transform: "rotate(45deg)",
+                              zIndex: -1,
+                            }
+                          : msg.role === "agent"
+                            ? {
+                                content: '""',
+                                position: "absolute",
+                                bottom: "8px",
+                                left: "-6px",
+                                width: "12px",
+                                height: "12px",
+                                backgroundColor: "#f0f7ff",
+                                transform: "rotate(45deg)",
+                                zIndex: -1,
+                              }
+                            : {},
+                    }}
+                  >
+                    <Typography sx={{ fontSize: "0.95rem", lineHeight: 1.5 }}>{msg.content}</Typography>
+                  </Box>
+                ))
+              ) : (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    opacity: 0.7,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      color: "#555",
+                      fontStyle: "italic",
+                      textAlign: "center",
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {callStatus === "active" ? "Listening... Speak now." : "No messages yet."}
+                  </Typography>
+                  {callStatus !== "active" && (
+                    <Typography
+                      sx={{
+                        color: "#555",
+                        textAlign: "center",
+                        fontSize: "0.85rem",
+                        mt: 1,
+                      }}
+                    >
+                      Click "Start Call" to begin a conversation
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Box>
         </Box>
       </Box>
 
